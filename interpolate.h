@@ -3,22 +3,20 @@
    11/5/14
 */
 
+// grid module was sourced from https://github.com/personalrobotics/or_cdchomp/
+
 #include <stdlib.h>
+#include"grid.h"
 
-struct InterpGrid
-{
-   /* Dimensionality of space */
-   int n;
-   /* Grid parameters */
-   int * sizes;
-   size_t ncells;
-   /* The actual data */
-   int cell_size;
-   char * data;
-   /* Actual grid side lengths (1x1x1x... by default) */
-   double * lengths;
-};
+#define MAXDISC 40  // Used as the maximum length of the fractional index lookup
 
-//int gridCreate(struct InterpGrid ** gp, void * cell_init, int cell_size, int n, ...);
+double interpN(int N, double *x, double **neighX, double *neighY, int EXTRAPMODE);
 
-double interpN(int N, double *x, double **neighX, double *neighY);
+// Returns the fractional index of value within array of values vararray[]
+double getFracIndex(double vararray[MAXDISC], double value, int numElem);
+
+// Returns a fractional index of the current state
+int getIndicies(double *indicies, double *currentState, int numDims, int *elementsDim, double **discMat);
+
+// Returns the state values of each neighbor of "indicies" and the value of Q(s,a) at that grid point:
+int getNeighbors(double *indicies, struct cd_grid **gridInst, double **neighX, double *neighY, int numDims, double **discMat);
