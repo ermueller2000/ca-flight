@@ -4,17 +4,42 @@
 #include"interpolate.h"
 
 
-#define VERBOSE 0
+#define VERBOSE 1
 #define READSTATELOCATION 0   // 0 is a canned state, 1 is from a file, 2 is from MAVLink
 #define EXTRAPMODE 0      // Use 0 for the interpolation function to use nearest neighbor 
-                //  beyond the grid
+                          //  beyond the grid
+#define THREATRANGE 30    // Range in meters at which an intruder aircraft triggers calls to CA
 
-int readState(double *currentState, int numDims)
+int readState(double *currentState, int numDims, double timeNow)
 // States are [rx, ry, vxo, vyo, vxi, vyi, dx, dy]
+// The states coming from the autopilot will not be these, I'll need to calculate at least
+// the ranges and perhaps some others in this function.
 {
 
   if (READSTATELOCATION == 0)
   {
+
+    if (numDims==3)
+    {
+      currentState[0] = 0+0.2*timeNow; // rx
+      currentState[1] = 0; // ry
+      currentState[2] = 0.2; // vxo
+
+      currentState[0] = -1.1; // rx
+      currentState[1] = 0; // ry
+      currentState[2] = -1; // vxo
+    }
+
+    if (numDims==6)
+    {
+      currentState[0] = 2+0*timeNow;  // rx
+      currentState[1] = 10+0.2*timeNow; // ry
+      currentState[2] = 0;  // vxo
+      currentState[3] = 0.2;  // vyo
+      currentState[4] = 0;  // vxi
+      currentState[5] = 0;  // vyi
+    }
+
     if (numDims==8)
     {
       currentState[0] = 2;  // rx
@@ -26,13 +51,7 @@ int readState(double *currentState, int numDims)
       currentState[6] = 0;  // dx
       currentState[7] = 0;  // dy
     }
-
-    if (numDims==3)
-    {
-      currentState[0] = 21.1; // rx
-      currentState[1] = 21.2; // ry
-      currentState[2] = 21; // vxo
-    }
+    
   }
 
   // Read from file
@@ -51,7 +70,7 @@ int readState(double *currentState, int numDims)
 
 }
 
-int writeAction(int actionInd, FILE *fpOut)
+int writeCAAction(int actionInd, FILE *fpOut)
 // Sends command corresponding to actionInd to autopilot/MAVLink.  
 // Actions are the following:
 // 0  nothing
@@ -99,6 +118,27 @@ switch (actionInd)
 
 }
 
+int writeNominalAction(FILE *fpOut)
+// Simply command a position, hard coded for now.
+{
+  // Send nominal position command
+
+  fprintf(fpOut, "-1\n");
+  return 0;
+}
+
+int intruderThreat(double *currentState)
+// Returns true if the measurement indicate that an intruder is a threat, in which case the
+// CA algorithm should be called.
+{
+  double range;
+
+  range = sqrt(currentState[0]*currentState[0] + currentState[1]*currentState[1]);
+
+  return (range<THREATRANGE);
+
+}
+
 int writeLogs(FILE *fpLog, int stepCounter, double* currentState, int numDims, int actionInd)
 // Writes key states to a log:
 // [currentStep, commanded action, states[0:N]]
@@ -123,7 +163,7 @@ int main()
 
   // Needed only in start_Algorithm():
   FILE *fpIn, *fpData;
-  int numVerticies; 
+  int numVerticies, numElements; 
 
   // Needed in  decide_Algorithm() but allocated or evaluated 
   // in start_Algorithm():
@@ -131,15 +171,21 @@ int main()
   FILE *fpOut, *fpLog;
   double *neighY;
   double **discMat, **neighX;
-  struct cd_grid ***gridQsa;  // This should hold a vector of grids, one for each action
+  struct cd_grid **gridQsa;  // This should hold a vector of grids, one for each action
 
   // Variables simply used in the algorithm functions, may be redeclared in each function:
   int i, j, k;
   int err, keyinput, exitCondition;
 
+  if (VERBOSE) {
+    printf("Reading parameter file...\n");
+  }
+
   /* Open and check the files */
   fpIn  = fopen("test.txt","r");
   fpData  = fopen("data.txt","r");
+  // fpIn  = fopen("paramtemp.txt","r");
+  // fpData  = fopen("datatemp.txt","r");
   fpOut = fopen("testOut.txt","w");
   fpLog = fopen("testLog.txt","w");
 
@@ -167,13 +213,13 @@ int main()
   fscanf(fpIn, "%d", &numDims);
 
   // Number of grid points (states) in each dimension:
-  //numElements = 1;
+  numElements = 1;
   elementsDim = (int *)malloc(numDims*sizeof(int));
   discMat = (double **)malloc(numDims*sizeof(double));
   for (i=0; i<numDims; i++) {
     fscanf(fpIn, "%d", &elementsDim[i]);
     //printf("Dimension %d = %d\n", i, elementsDim[i]);
-    //numElements *= elementsDim[i];
+    numElements *= elementsDim[i];
     discMat[i] = (double *)malloc(elementsDim[i]*sizeof(double));
   }
 
@@ -188,49 +234,91 @@ int main()
   fscanf(fpIn, "%d", &numActions);
 
   fclose(fpIn);
+
+  if (VERBOSE) {
+    printf("Done reading parameter file\n");
+  }
   /* Finished reading parameter file
 
   /* Create the grid data structure to hold contents as specified in the parameter file */
   //cell_init = (void *)malloc(numElements*sizeof(double));
   // gridInst = (struct cd_grid **) malloc(sizeof(struct cd_grid));
-  gridQsa = (struct cd_grid ***)malloc(numActions*sizeof(struct cd_grid));
-  if (numDims == 3)
-  {
-    // **** Need to make these calls to separate functions (perhaps in another utility file?)
-    double Q[elementsDim[0]][elementsDim[1]][elementsDim[2]];
-    struct cd_grid **gridInst;
-    int actionInd;
-
-    /* Using the contents of the parameter file, read and parse the data file */  
-    /* Currently sets a max size for Q, should eventually malloc a multi-dimensional Q 
-       that is exactly the size defined by elementsDim. Or read directly into grid structure
-       For now will just assume it's 3D */  
-
-    for (actionInd=0; actionInd<numActions; actionInd++)
-    {
-      gridInst = (struct cd_grid **) malloc(sizeof(struct cd_grid));
-      for (i=0; i<elementsDim[0]; i++) {
-        for (j=0; j<elementsDim[1]; j++) {
-          for (k=0; k<elementsDim[2]; k++) {
-            fscanf(fpData, "%lf", &Q[i][j][k]);
-            if (VERBOSE) {
-              printf("Q[%d,%d,%d] = %lf\n", i,j,k,Q[i][j][k]);
-            }
-            //cd_grid_get_index(struct cd_grid * g, size_t index)
-          }
-          //printf("%f, ", discMat[i][j]);
-        }
-        //printf("]\n");
-      }
-      //printf("Done loading data\n");
-
-      // After the number of dimensions, the size of each dimension must be passed in as a series of arguments.
-      cd_grid_create_fill(gridInst, Q, sizeof(double), numDims, elementsDim[0], elementsDim[1], elementsDim[2]);
-      gridQsa[actionInd] = gridInst;
-    }
-    //printf("Grid constructed\n");
+  double var;
+  struct cd_grid **gridInst;
+  int actionInd;
+  int *subs; 
+  gridInst = (struct cd_grid **) malloc(sizeof(struct cd_grid));
+  gridQsa = (struct cd_grid **)malloc(numActions*sizeof(struct cd_grid));
+  subs = (int *)malloc(numDims*sizeof(int));
+ 
+  // To make this a single block of text for every possible value of numDims, need to be able to 
+  // fill the "grid" with elements directly using the index and subscripts.  There may already be
+  // a function in cd_grid to do this...
+  if (VERBOSE) {
+    printf("Reading data file\n");
   }
+    if (numDims==3) {
+      double Q[elementsDim[0]][elementsDim[1]][elementsDim[2]];
+      
+      /* Using the contents of the parameter file, read and parse the data file */  
+      for (actionInd=0; actionInd<numActions; actionInd++)
+      {
+        // I should probably be able to read in the elements directly to Q if it's allocated into a contiguous
+        // memory block.  Could just use the index value, rather than going from  an index to a subscript and
+        // back to and index? Just need to verify that this works, then make sure my revision matches this version.
+        for (i=0;i<numElements;i++){
+          fscanf(fpData, "%lf", &var);
+          err = ind2subs(elementsDim, numDims, i, subs);
+          Q[subs[0]][subs[1]][subs[2]] = var;
+        }
+
+        // After the number of dimensions, the size of each dimension must be passed in as a series of arguments.
+        cd_grid_create_fill(gridInst, Q, sizeof(double), numDims, elementsDim[0], elementsDim[1], elementsDim[2]);
+        gridQsa[actionInd] = *gridInst;
+      }
+    }
+
+    if (numDims==6) {
+      double Q[elementsDim[0]][elementsDim[1]][elementsDim[2]][elementsDim[3]][elementsDim[4]][elementsDim[5]];  
+      for (actionInd=0; actionInd<numActions; actionInd++) {
+        for (i=0;i<numElements;i++){
+          fscanf(fpData, "%lf", &var);
+          err = ind2subs(elementsDim, numDims, i, subs);
+          Q[subs[0]][subs[1]][subs[2]][subs[3]][subs[4]][subs[5]] = var;
+        }
+        cd_grid_create_fill(gridInst, Q, sizeof(double), numDims, elementsDim[0], elementsDim[1], elementsDim[2], elementsDim[3], elementsDim[4], elementsDim[5]);
+        gridQsa[actionInd] = *gridInst;
+      } 
+    }    
+
+    if (numDims==8) {
+      double Q[elementsDim[0]][elementsDim[1]][elementsDim[2]][elementsDim[3]][elementsDim[4]][elementsDim[5]][elementsDim[6]][elementsDim[7]];  
+      for (actionInd=0; actionInd<numActions; actionInd++) {
+        for (i=0;i<numElements;i++){
+          fscanf(fpData, "%lf", &var);
+          err = ind2subs(elementsDim, numDims, i, subs);
+          Q[subs[0]][subs[1]][subs[2]][subs[3]][subs[4]][subs[5]][subs[6]][subs[7]] = var;
+        }
+        cd_grid_create_fill(gridInst, Q, sizeof(double), numDims, elementsDim[0], elementsDim[1], elementsDim[2], elementsDim[3], elementsDim[4], elementsDim[5], elementsDim[6], elementsDim[7]);
+        gridQsa[actionInd] = *gridInst;
+      } 
+      
+    }    
+
+    // // Test the read-in data:
+    // double testArray[numElements];
+    // for (i=0;i<numElements;i++){
+    //       err = ind2subs(elementsDim, numDims, i, subs);
+    //       testArray[i] = *(double *)cd_grid_get_subs(gridQsa[0], subs);
+    //       printf("%lf\n", testArray[i]);
+    //     }
+
   fclose(fpData);
+  free(gridInst);
+  free(subs);
+  if (VERBOSE) {
+    printf("Done reading data file\n");
+  }
 
   // Allocate space for the interpolations needed to decide actions:
   numVerticies = pow(2,numDims);
@@ -259,11 +347,14 @@ int main()
   indicies = (double *)malloc(numDims*sizeof(double));
   exitCondition = 0;
   stepCounter = 0;
+  if (VERBOSE) {
+    printf("Beginning simulation\n");
+  }
   while (!exitCondition)
   {
 
     // read the current state from MAVLink (or a file, for now)
-    err = readState(currentState, numDims);
+    err = readState(currentState, numDims, (double)stepCounter);
 
     // find indicies into the grid using the current state
     err = getIndicies(indicies, currentState, numDims, elementsDim, discMat);
@@ -272,10 +363,36 @@ int main()
     int actionInd;
     for (actionInd=0; actionInd<numActions; actionInd++) {
       // read in the neighbor verticies to the data structure and read in the values at the verticies
-      err = getNeighbors(indicies, gridQsa[actionInd], neighX, neighY, numDims, discMat);
-    
+      err = getNeighbors(indicies, &gridQsa[actionInd], neighX, neighY, numDims, discMat);
       // interpolate within the data file using the current state (call interpN()) and store
       qVals[actionInd] = interpN(numDims, currentState, neighX, neighY, EXTRAPMODE);
+
+      if (VERBOSE) {
+        printf("Indicies:\n");
+        printf("[");
+        for (i=0;i<numDims;i++) {
+          printf("%lf, ", indicies[i]);
+        }
+        printf("]\n");
+
+        printf("Neighbors:\n");
+        printf("[");
+        for (i=0;i<numDims;i++) {
+          for(j=0;j<numVerticies; j++){
+            printf("%lf, ", neighX[i][j]);
+          }
+          printf("\n");
+        }
+
+        printf("Neighbor values:\n");
+        printf("[");
+        for (i=0;i<numVerticies;i++) {
+          printf("%lf, ", neighY[i]);
+        }
+        printf("]\n");
+
+        printf("Interpolated Value: %lf\n", qVals[actionInd]);
+      }
     }
 
     // calculate the best action
@@ -290,7 +407,11 @@ int main()
 
 
     // write the action to MAVLink (or a file, for now)
-    err = writeAction(bestActionInd, fpOut);
+    if (intruderThreat(currentState)) 
+      err = writeCAAction(bestActionInd, fpOut); 
+    else
+      err = writeNominalAction(fpOut);
+  
 
     // log the current state and action to a log file
     err = writeLogs(fpLog, stepCounter, currentState, numDims, bestActionInd);
@@ -306,7 +427,7 @@ int main()
     // }
 
     // While debugging, stop after a predetermined number of steps:
-    if (stepCounter>=10)
+    if (stepCounter>=0)
       exitCondition = 1;  
   }
   free(currentState);
@@ -320,8 +441,11 @@ int main()
   //close_keyboard();  // This is only necessary if we're using kbhit()
 
   // Free allocated memory
+  // for (i=0;i<numActions;i++) {
+  //   cd_grid_destroy(*gridQsa[i]);
+  // }
   for (i=0;i<numActions;i++) {
-    cd_grid_destroy(*gridQsa[i]);
+    cd_grid_destroy(gridQsa[i]);
   }
   free(gridQsa);
   for (i=0; i<numDims; i++) {
@@ -455,3 +579,51 @@ return 0;
   //free(p);
   //free(valuep);
   //free(cell_init);
+
+      // Old version of reading in data file before switch/case statement:
+  //       if (numDims == 3)
+  // {
+  //   // **** Need to make these calls to separate functions (perhaps in another utility file?)
+  //   double Q[elementsDim[0]][elementsDim[1]][elementsDim[2]];
+    
+
+  //   /* Using the contents of the parameter file, read and parse the data file */  
+  //   /* Currently sets a max size for Q, should eventually malloc a multi-dimensional Q 
+  //      that is exactly the size defined by elementsDim. Or read directly into grid structure
+  //      For now will just assume it's 3D */  
+
+  //   for (actionInd=0; actionInd<numActions; actionInd++)
+  //   {
+      
+
+  //     // I should probably be able to read in the elements directly to Q if it's allocated into a contiguous
+  //     // memory block.  Could just use the index value, rather than going from  an index to a subscript and
+  //     // back to and index? Just need to verify that this works, then make sure my revision matches this version.
+  //     for (i=0;i<numElements;i++){
+  //       fscanf(fpData, "%lf", &var);
+  //       err = ind2subs(elementsDim, numDims, i, subs);
+  //       Q[subs[0]][subs[1]][subs[2]] = var;
+  //     }
+
+  //     // Older version that seemed to work (but was not consistent with julia, necessarily):
+  //     // for (i=0; i<elementsDim[0]; i++) {
+  //     //   for (j=0; j<elementsDim[1]; j++) {
+  //     //     for (k=0; k<elementsDim[2]; k++) {
+  //     //       fscanf(fpData, "%lf", &Q[i][j][k]);
+  //     //       if (VERBOSE) {
+  //     //         printf("Q[%d,%d,%d] = %lf\n", i,j,k,Q[i][j][k]);
+  //     //       }
+  //     //       //cd_grid_get_index(struct cd_grid * g, size_t index)
+  //     //     }
+  //     //     //printf("%f, ", discMat[i][j]);
+  //     //   }
+  //     //   //printf("]\n");
+  //     // }
+  //     //printf("Done loading data\n");
+
+  //     // After the number of dimensions, the size of each dimension must be passed in as a series of arguments.
+  //     cd_grid_create_fill(gridInst, Q, sizeof(double), numDims, elementsDim[0], elementsDim[1], elementsDim[2]);
+  //     gridQsa[actionInd] = gridInst;
+  //   }
+  //   //printf("Grid constructed\n");
+  // }

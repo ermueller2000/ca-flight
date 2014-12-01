@@ -8,6 +8,36 @@
 #include <math.h>
 #include "interpolate.h"
 
+int ind2subs(int *dims, int numDims, int index, int *subs)
+// Given a set of dimensions (dims), the number of dimensions, and an index, returns
+// the subscripts corresponding to the index in subs.
+{
+  int i, vi, vj;
+  int *cumprod;
+
+  cumprod = (int *)malloc(numDims*sizeof(int));
+
+  cumprod[0] = 1;
+  //printf("CumProd = [%d ", cumprod[0]);
+  for (i=1; i<numDims; i++) {
+    cumprod[i] = cumprod[i-1] * dims[i-1];
+    //printf("%d ", cumprod[i]);
+  }
+  //printf("]\n");
+
+  for (i=numDims-1;i>=0;i--){
+    vi = index % cumprod[i];
+    //printf("vi=%d\n", vi);
+    vj = (index-vi)/cumprod[i];
+    //printf("vj=%d\n",vj);
+    subs[i] = vj;
+    //printf("subs[i]=%d\n", subs[i]);
+    index = vi;
+    //printf("index=%d\n", index);
+  }
+//printf("here\n");
+  return 0;
+}
 
 double interpN(int N, double *x, double **neighX, double *neighY, int EXTRAPMODE)
 {
@@ -233,6 +263,33 @@ int getNeighbors(double *indicies, struct cd_grid **gridInst, double **neighX, d
   }
 
   return 0;
+
+}
+
+void test_ind2sub(void)
+{
+  int *dims,  *subs; 
+  int numDims, index, numElements, i;
+
+  numDims = 3;
+  dims = (int *)malloc(numDims*sizeof(int));
+  subs = (int *)malloc(numDims*sizeof(int));
+
+  dims[0] = 2;
+  dims[1] = 3;
+  dims[2] = 4;
+
+  numElements = 1;
+  for (index=0; index<numDims; index++)
+    numElements *= dims[index];
+
+  for (index=0;index<numElements;index++) {
+    ind2subs(dims, numDims, index, subs);
+    printf("Index %d = [", index);
+    for (i=0; i<numDims; i++)
+      printf("%d, ", subs[i]);
+    printf("]\n");
+  }
 
 }
 
