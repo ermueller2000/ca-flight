@@ -39,7 +39,7 @@ int ind2subs(int *dims, int numDims, int index, int *subs)
   return 0;
 }
 
-double interpN(int N, double *x, double **neighX, double *neighY, int EXTRAPMODE)
+double interpN(int N, double *xInit, double **neighX, double *neighY, int EXTRAPMODE)
 {
 // Given an N-dimensional vector, x, 
 // its 2^N neighbors (each of dimension N, so N by 2^N) neighX, 
@@ -53,8 +53,13 @@ double interpN(int N, double *x, double **neighX, double *neighY, int EXTRAPMODE
   double maxvec[N], minvec[N], vecfar[N], vecnear[N];
   int i, j, numVerticies;
   double denNorm, y, coefnum;
+  double *x;
 
   numVerticies = pow(2,N);
+  x = (double *)malloc(N*sizeof(double));
+  for (i=0;i<N;i++) {
+    x[i] = xInit[i];
+  }
 
   // Find the maximum and minimum values of the neighbor x coordinates:
   // I probably don't need to look at every vertex since there should only

@@ -4,11 +4,16 @@
 #include"interpolate.h"
 
 
-#define VERBOSE 1
+#define VERBOSE 0
 #define READSTATELOCATION 0   // 0 is a canned state, 1 is from a file, 2 is from MAVLink
 #define EXTRAPMODE 0      // Use 0 for the interpolation function to use nearest neighbor 
                           //  beyond the grid
 #define THREATRANGE 30    // Range in meters at which an intruder aircraft triggers calls to CA
+#define MAXSIMSTEPS 10    // If running in canned sim mode, stop after this number of time steps
+#define SIMSTATERAND 0    // If != 0, returns random states upon calls to readState() (must be in 
+                          // READSTATELOCATION==0 mode). For debugging.  Random states are within
+                          // + or - SIMSTATERAND
+#define VMAX  2          // Maximum absolute allowable horizontal velocity
 
 int readState(double *currentState, int numDims, double timeNow)
 // States are [rx, ry, vxo, vyo, vxi, vyi, dx, dy]
@@ -25,9 +30,9 @@ int readState(double *currentState, int numDims, double timeNow)
       currentState[1] = 0; // ry
       currentState[2] = 0.2; // vxo
 
-      currentState[0] = -1.1; // rx
+      currentState[0] = 0; // rx
       currentState[1] = 0; // ry
-      currentState[2] = -1; // vxo
+      currentState[2] = 0; // vxo
     }
 
     if (numDims==6)
@@ -42,14 +47,27 @@ int readState(double *currentState, int numDims, double timeNow)
 
     if (numDims==8)
     {
-      currentState[0] = 2;  // rx
-      currentState[1] = 10; // ry
-      currentState[2] = 0;  // vxo
-      currentState[3] = 2;  // vyo
-      currentState[4] = 0;  // vxi
-      currentState[5] = 0;  // vyi
-      currentState[6] = 0;  // dx
-      currentState[7] = 0;  // dy
+
+      if (SIMSTATERAND) {
+        currentState[0] = SIMSTATERAND*(2*(double)rand()/RAND_MAX-1);  // rx
+        currentState[1] = SIMSTATERAND*(2*(double)rand()/RAND_MAX-1); // ry
+        currentState[2] = SIMSTATERAND*(2*(double)rand()/RAND_MAX-1);  // vxo
+        currentState[3] = SIMSTATERAND*(2*(double)rand()/RAND_MAX-1);  // vyo
+        currentState[4] = SIMSTATERAND*(2*(double)rand()/RAND_MAX-1);  // vxi
+        currentState[5] = SIMSTATERAND*(2*(double)rand()/RAND_MAX-1);  // vyi
+        currentState[6] = SIMSTATERAND*(2*(double)rand()/RAND_MAX-1);  // dx
+        currentState[7] = SIMSTATERAND*(2*(double)rand()/RAND_MAX-1);  // dy
+      }
+      else {
+        currentState[0] = 1;  // rx
+        currentState[1] = 20-4*timeNow; // ry
+        currentState[2] = 0-.3*timeNow;  // vxo
+        currentState[3] = 0-.3*timeNow;  // vyo
+        currentState[4] = 0;  // vxi
+        currentState[5] = 0;  // vyi
+        currentState[6] = 0;  // dx
+        currentState[7] = 10;  // dy
+      }
     }
     
   }
@@ -70,7 +88,7 @@ int readState(double *currentState, int numDims, double timeNow)
 
 }
 
-int writeCAAction(int actionInd, FILE *fpOut)
+int writeCAAction(int actionInd, double *currentState, int numDims, FILE *fpOut)
 // Sends command corresponding to actionInd to autopilot/MAVLink.  
 // Actions are the following:
 // 0  nothing
@@ -79,31 +97,46 @@ int writeCAAction(int actionInd, FILE *fpOut)
 // 3  -y
 // 4  +y
 {
+  double ax, ay;
+  double vx_cmd, vy_cmd;
+  double dt;
+
+  dt = 1;
 
 switch (actionInd)
   {
     case 0:
       // Send command for zero acceleration
+      ax=0;
+      ay=0;
       
     break;
 
     case 1:
       // Send command for -x acceleration
+      ax=-1;
+      ay=0;
       
     break;
 
     case 2:
       // Send command for +x acceleration
+      ax=1;
+      ay=0;
       
     break;
 
     case 3:
       // Send command for -y acceleration
+      ax=0;
+      ay=-1;
       
     break;
 
     case 4:
       // Send command for +y acceleration
+      ax=0;
+      ay=1;
       
     break;
 
@@ -112,7 +145,24 @@ switch (actionInd)
       return 1;
   }
 
-  fprintf(fpOut, "%d\n", actionInd);
+  vx_cmd = currentState[2]+ax*dt;
+  vy_cmd = currentState[3]+ay*dt;
+  fprintf(fpOut, "%d, %lf, %lf, ", actionInd, vx_cmd, vy_cmd);
+
+  if (vx_cmd > VMAX)
+    vx_cmd = VMAX;
+  if (vx_cmd < -VMAX)
+    vx_cmd = -VMAX;
+  if (vy_cmd > VMAX)
+    vy_cmd = VMAX;
+  if (vy_cmd < -VMAX)
+    vy_cmd = -VMAX;
+
+  fprintf(fpOut, "%lf, %lf\n", vx_cmd, vy_cmd);
+  
+  /*************************************************************************/
+  /****         Send vx_cmd and vy_cmd here                             ****/
+  /*************************************************************************/
 
   return 0;
 
@@ -134,6 +184,8 @@ int intruderThreat(double *currentState)
   double range;
 
   range = sqrt(currentState[0]*currentState[0] + currentState[1]*currentState[1]);
+
+
 
   return (range<THREATRANGE);
 
@@ -182,10 +234,10 @@ int main()
   }
 
   /* Open and check the files */
-  fpIn  = fopen("test.txt","r");
-  fpData  = fopen("data.txt","r");
-  // fpIn  = fopen("paramtemp.txt","r");
-  // fpData  = fopen("datatemp.txt","r");
+  // fpIn  = fopen("test.txt","r");
+  // fpData  = fopen("data.txt","r");
+  fpIn  = fopen("param8Dim141201.txt","r");
+  fpData  = fopen("data8Dim141201.txt","r");
   fpOut = fopen("testOut.txt","w");
   fpLog = fopen("testLog.txt","w");
 
@@ -313,6 +365,7 @@ int main()
     //       printf("%lf\n", testArray[i]);
     //     }
 
+
   fclose(fpData);
   free(gridInst);
   free(subs);
@@ -322,7 +375,7 @@ int main()
 
   // Allocate space for the interpolations needed to decide actions:
   numVerticies = pow(2,numDims);
-  neighX = malloc(numDims*sizeof(double *));
+  neighX = (double **)malloc(numDims*sizeof(double));
   if (neighX) {
     for (i=0;i<numDims;i++) {
       neighX[i]=(double *)malloc(numVerticies*sizeof(double));
@@ -408,7 +461,7 @@ int main()
 
     // write the action to MAVLink (or a file, for now)
     if (intruderThreat(currentState)) 
-      err = writeCAAction(bestActionInd, fpOut); 
+      err = writeCAAction(bestActionInd, currentState, numDims, fpOut); 
     else
       err = writeNominalAction(fpOut);
   
@@ -427,7 +480,7 @@ int main()
     // }
 
     // While debugging, stop after a predetermined number of steps:
-    if (stepCounter>=0)
+    if (stepCounter>=MAXSIMSTEPS)
       exitCondition = 1;  
   }
   free(currentState);
