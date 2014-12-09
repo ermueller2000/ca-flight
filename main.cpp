@@ -3,9 +3,11 @@
 #include <math.h>
 #include"interpolate.h"
 
+#include"mavlink_control.cpp"
 
-#define VERBOSE 1
-#define READSTATELOCATION 0   // 0 is a canned state, 1 is from a file, 2 is from MAVLink
+
+#define VERBOSE 0
+#define READSTATELOCATION 2   // 0 is a canned state, 1 is from a file, 2 is from MAVLink
 #define EXTRAPMODE 0      // Use 0 for the interpolation function to use nearest neighbor 
                           //  beyond the grid
 #define THREATRANGE 30    // Range in meters at which an intruder aircraft triggers calls to CA
@@ -64,7 +66,38 @@ int readState(double *currentState, int numDims, double timeNow)
   // Read from MAVLink/autopilot
   if (READSTATELOCATION == 2)
   {
+	    if ( not numDims==6 )
+	    {
+	    	printf("ERROR: numDims not 6, is %i",numDims);
+	    	throw 1;
 
+	    }
+
+		// --------------------------------------------------------------------------
+		//   GET STATES
+		// --------------------------------------------------------------------------
+
+		float xo,yo, vxo,vyo;
+		get_position_ownship(xo ,yo );
+		get_velocity_ownship(vxo,vyo);
+
+		float xi,yi, vxi,vyi;
+		get_position_intruder(xi ,yi );
+		get_velocity_intruder(vxi,vyi);
+
+		printf("OWNSHIP XY: [ %.4f , %.4f ] \n" , xo,yo);
+		printf("OWNSHIP UV: [ %.4f , %.4f ] \n" , vxo,vyo);
+		printf("INTRUDER XY:[ %.4f , %.4f ] \n" , xi,yi);
+		printf("INTRUDER UV:[ %.4f , %.4f ] \n" , vxi,vyi);
+
+		currentState[0] = (double) (xi-xo); // rx
+		currentState[1] = (double) (yi-yo); // ry
+		currentState[2] = (double) vxo;     // vxo
+		currentState[3] = (double) vyo;     // vyo
+		currentState[4] = (double) vxi;     // vxi
+		currentState[5] = (double) vyi;     // vyi
+
+		printf("\n");
   }
   return 0;
 
@@ -155,7 +188,7 @@ int writeLogs(FILE *fpLog, int stepCounter, double* currentState, int numDims, i
   return 0;
 }
 
-int main()
+int main(int argc, char **argv)
 {
   /***********************************************************
   ***   The following would be in start_Algorithm()        ***
@@ -182,8 +215,8 @@ int main()
   }
 
   /* Open and check the files */
-  fpIn  = fopen("test.txt","r");
-  fpData  = fopen("data.txt","r");
+  fpIn  = fopen("test6Dims.txt","r");
+  fpData  = fopen("data6Dims.txt","r");
   // fpIn  = fopen("paramtemp.txt","r");
   // fpData  = fopen("datatemp.txt","r");
   fpOut = fopen("testOut.txt","w");
@@ -322,7 +355,7 @@ int main()
 
   // Allocate space for the interpolations needed to decide actions:
   numVerticies = pow(2,numDims);
-  neighX = malloc(numDims*sizeof(double *));
+  neighX = (double **)malloc(numDims*sizeof(double));
   if (neighX) {
     for (i=0;i<numDims;i++) {
       neighX[i]=(double *)malloc(numVerticies*sizeof(double));
@@ -332,6 +365,14 @@ int main()
 
   // Prepare keyboard input, if necessary:
   // init_keyboard();    // Only need this in testing, not flight hardware
+
+  // --------------------------------------------------------------------------
+  //   PORT and THREAD STARTUP
+  // --------------------------------------------------------------------------
+  startup( argc , argv );
+
+
+
 
   /***********************************************************
   ***   The following would be in decide_Algorithm()       ***
@@ -427,8 +468,13 @@ int main()
     // }
 
     // While debugging, stop after a predetermined number of steps:
-    if (stepCounter>=0)
+    if (stepCounter>=1000)
       exitCondition = 1;  
+    if (time_to_exit)
+    	exitCondition = 1;
+
+    usleep(1000000); // tick at 1Hz
+
   }
   free(currentState);
   free(qVals);
@@ -437,6 +483,12 @@ int main()
   /***********************************************************
   ***   The following would be in stop_Algorithm()         ***
   ************************************************************/
+
+  // --------------------------------------------------------------------------
+  //   THREAD and PORT SHUTDOWN
+  // --------------------------------------------------------------------------
+  shutdown();
+
 
   //close_keyboard();  // This is only necessary if we're using kbhit()
 
