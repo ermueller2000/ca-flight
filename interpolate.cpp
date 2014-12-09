@@ -61,6 +61,10 @@ double interpN(int N, double *xInit, double **neighX, double *neighY, int EXTRAP
   }
 
   numVerticies = pow(2,N);
+  x = (double *)malloc(N*sizeof(double));
+  for (i=0;i<N;i++) {
+    x[i] = xInit[i];
+  }
 
   // Find the maximum and minimum values of the neighbor x coordinates:
   // I probably don't need to look at every vertex since there should only
