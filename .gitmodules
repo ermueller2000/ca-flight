@@ -1,0 +1,3 @@
+[submodule "autopilot_interface"]
+	path = autopilot_interface
+	url = git@github.com:aerialhedgehog/c_uart_interface_example.git

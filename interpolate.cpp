@@ -55,6 +55,11 @@ double interpN(int N, double *xInit, double **neighX, double *neighY, int EXTRAP
   double denNorm, y, coefnum;
   double *x;
 
+  x = (double *)malloc(N*sizeof(double));
+  for(i=0;i<N;i++){
+	  x[i]=xInit[i];
+  }
+
   numVerticies = pow(2,N);
   x = (double *)malloc(N*sizeof(double));
   for (i=0;i<N;i++) {
@@ -115,7 +120,7 @@ double interpN(int N, double *xInit, double **neighX, double *neighY, int EXTRAP
 
   // Normalize the result
   y /= denNorm;
-
+  free(x);
   return y;
 
 }
