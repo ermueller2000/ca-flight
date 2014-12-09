@@ -1,1 +1,12 @@
+# unix
+*~
+
+# make
+*.o
+*.d
+pseudo_mavlink
+ca-flight
+
+
 /Debug/
+

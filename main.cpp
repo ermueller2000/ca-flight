@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include"interpolate.h"
+#include "interpolate.h"
 
-#include"mavlink_control.cpp"
+#include "autopilot_setup.h"
 
 #define VERBOSE 0
 #define READSTATELOCATION 2   // 0 is a canned state, 1 is from a file, 2 is from MAVLink
@@ -102,10 +102,10 @@ int readState(double *currentState, int numDims, double timeNow)
 		get_position_intruder(xi ,yi );
 		get_velocity_intruder(vxi,vyi);
 
-		printf("OWNSHIP XY: [ %.4f , %.4f ] \n" , xo,yo);
-		printf("OWNSHIP UV: [ %.4f , %.4f ] \n" , vxo,vyo);
-		printf("INTRUDER XY:[ %.4f , %.4f ] \n" , xi,yi);
-		printf("INTRUDER UV:[ %.4f , %.4f ] \n" , vxi,vyi);
+		printf("OWNSHIP XY: [ % .4f , % .4f ] \n" , xo,yo);
+		printf("OWNSHIP UV: [ % .4f , % .4f ] \n" , vxo,vyo);
+		printf("INTRUDER XY:[ % .4f , % .4f ] \n" , xi,yi);
+		printf("INTRUDER UV:[ % .4f , % .4f ] \n" , vxi,vyi);
 
 		currentState[0] = (double) (xi-xo); // rx
 		currentState[1] = (double) (yi-yo); // ry
@@ -190,8 +190,12 @@ switch (actionInd)
   if (vy_cmd < -VMAX)
     vy_cmd = -VMAX;
 
+  set_velocity_ownship( (float&)vx_cmd, (float&)vy_cmd );
+  printf("AVOID UV    [ % .4f , % .4f ]\n\n", vx_cmd, vy_cmd);
+
   fprintf(fpOut, "%lf, %lf\n", vx_cmd, vy_cmd);
   
+
   /*************************************************************************/
   /****         Send vx_cmd and vy_cmd here                             ****/
   /*************************************************************************/
@@ -204,6 +208,10 @@ int writeNominalAction(FILE *fpOut)
 // Simply command a position, hard coded for now.
 {
   // Send nominal position command
+
+  float vx=0.5, vy=0.0;
+  set_velocity_ownship( vx, vy );
+  printf("NOMINAL UV  [ % .4f , % .4f ]\n\n", vx, vy);
 
   fprintf(fpOut, "-1\n");
   return 0;
@@ -239,7 +247,7 @@ int writeLogs(FILE *fpLog, int stepCounter, double* currentState, int numDims, i
   return 0;
 }
 
-int main(int argc, char **argv)
+int top(int argc, char **argv)
 {
   /***********************************************************
   ***   The following would be in start_Algorithm()        ***
@@ -326,7 +334,7 @@ int main(int argc, char **argv)
   if (VERBOSE) {
     printf("Done reading parameter file\n");
   }
-  /* Finished reading parameter file
+  /* Finished reading parameter file */
 
   /* Create the grid data structure to hold contents as specified in the parameter file */
   //cell_init = (void *)malloc(numElements*sizeof(double));
@@ -423,9 +431,39 @@ int main(int argc, char **argv)
   // init_keyboard();    // Only need this in testing, not flight hardware
 
   // --------------------------------------------------------------------------
-  //   PORT and THREAD STARTUP
+  //   AUTOPILOT SETUP
   // --------------------------------------------------------------------------
-  startup( argc , argv );
+
+	// --------------------------------------------------------------------------
+	//   PARSE THE COMMANDS
+	// --------------------------------------------------------------------------
+
+	// Default input arguments
+	char *uart_name = (char*)"/dev/ttyUSB0";
+	int baudrate = 57600;
+
+	// do the parse, will throw an int if it fails
+	parse_commandline(argc, argv, uart_name, baudrate);
+
+	// --------------------------------------------------------------------------
+	//   PORT and THREAD STARTUP
+	// --------------------------------------------------------------------------
+
+	Serial_Port serial_port(uart_name, baudrate);
+	Autopilot_Interface autopilot_interface(&serial_port);
+
+	// --------------------------------------------------------------------------
+	//   INTERUPT HANDLER
+	// --------------------------------------------------------------------------
+	serial_port_ref         = &serial_port;
+	autopilot_interface_ref = &autopilot_interface;
+	signal(SIGINT,quit_handler);
+
+	// --------------------------------------------------------------------------
+	//   PORT and THREAD START
+	// --------------------------------------------------------------------------
+	serial_port.start();
+	autopilot_interface.start();
 
 
 
@@ -444,9 +482,10 @@ int main(int argc, char **argv)
   indicies = (double *)malloc(numDims*sizeof(double));
   exitCondition = 0;
   stepCounter = 0;
-  if (VERBOSE) {
-    printf("Beginning simulation\n");
-  }
+
+  printf("BEGINNING SIMULATION\n");
+  printf("\n");
+
   while (!exitCondition)
   {
 
@@ -524,10 +563,12 @@ int main(int argc, char **argv)
     // }
 
     // While debugging, stop after a predetermined number of steps:
-    if (stepCounter>=MAXSIMSTEPS)
-      exitCondition = 1;  
-    if (time_to_exit)
+    if (stepCounter>=MAXSIMSTEPS){
     	exitCondition = 1;
+    }
+    if (time_to_exit){
+    	exitCondition = 1;
+    }
 
     usleep(1000000); // tick at 1Hz
 
@@ -543,8 +584,11 @@ int main(int argc, char **argv)
   // --------------------------------------------------------------------------
   //   THREAD and PORT SHUTDOWN
   // --------------------------------------------------------------------------
-  shutdown();
-
+  if ( not time_to_exit )
+  {
+	autopilot_interface.stop();
+	serial_port.stop();
+  }
 
   //close_keyboard();  // This is only necessary if we're using kbhit()
 
@@ -574,164 +618,24 @@ int main(int argc, char **argv)
 return 0;
 }
 
-/* Fractional index and neighbor lookup test code:
 
-    printf("Indicies:\n");
-    printf("[");
-    for (i=0;i<numDims;i++) {
-      printf("%lf, ", indicies[i]);
-    }
-    printf("]\n");
+// ------------------------------------------------------------------------------
+//   Main
+// ------------------------------------------------------------------------------
+int
+main(int argc, char **argv)
+{
+	// This program uses throw, wrap one big try/catch here
+	try
+	{
+		int result = top(argc,argv);
+		return result;
+	}
 
-    printf("Neighbors:\n");
-    printf("[");
-    for (i=0;i<numDims;i++) {
-      for(j=0;j<numVerticies; j++){
-        printf("%lf, ", neighX[i][j]);
-      }
-      printf("\n");
-    }
+	catch ( int error )
+	{
+		fprintf(stderr,"main threw exception %i \n" , error);
+		return error;
+	}
 
-    printf("Neighbor values:\n");
-    printf("[");
-    for (i=0;i<numVerticies;i++) {
-      printf("%lf, ", neighY[i]);
-    }
-    printf("]\n");
-
-*/
-
-
-// Code to check interpolation function (needs adaptation to own interpolation function)
-/*
-
-// Check whether things are being stored correctly:
-  
-  float ii, jj;
-  // Now do a test interpolation
-  p = (double *)malloc(numElements*sizeof(double));
-  valuep = (double *)malloc(sizeof(double));
-  p[0] = 0.55;
-  p[1] = 0.68;
-  p[2] = 0.0;
-  printf("Built interp structures\n");
-
-  size_t * index;
-  double *value;
-  g = *gridInst;
-  index = (size_t *) malloc((g->n+1) * sizeof(size_t));
-  cd_grid_lookup_index(*gridInst, p, index);
-  value = (double *)(g->data + (*index)*g->cell_size);
-  printf("%lf\n", *value);
-
-  double interpMat[11][11];
-  int indX, indY;
-  indX = 1;
-  err = 0;
-  for (ii=0; ii<=1; ii+=0.2) {
-    indY = 1;
-    printf("[");
-    for (jj=0; jj<=1; jj+=0.2)  {
-      // err = cd_grid_double_interp(*gridInst, p, valuep);
-      p[0] = ii;
-      p[1] = jj;
-      err = cd_grid_double_interp(*gridInst, p, &interpMat[indX][indY]);
-      // Need to get the following working:
-      // double interpN(int N, double *x, double **neighX, double *neighY)
-      if (err)
-        printf("Got error: %d", err);
-      printf("%lf, ", interpMat[indX][indY]);
-      // printf("%d\n", jj);
-      indY++;
-    }
-    printf("]\n");
-    indX++;
-  }
-
-  if (err)
-    printf("Error in interpolation\n");
-
-*/
-
-  // The following code is for realtime checking of interpolation functions:
-/*
-  if (VERBOSE) {
-        printf("Indicies:\n");
-        printf("[");
-        for (i=0;i<numDims;i++) {
-          printf("%lf, ", indicies[i]);
-        }
-        printf("]\n");
-
-        printf("Neighbors:\n");
-        printf("[");
-        for (i=0;i<numDims;i++) {
-          for(j=0;j<numVerticies; j++){
-            printf("%lf, ", neighX[i][j]);
-          }
-          printf("\n");
-        }
-
-        printf("Neighbor values:\n");
-        printf("[");
-        for (i=0;i<numVerticies;i++) {
-          printf("%lf, ", neighY[i]);
-        }
-        printf("]\n");
-
-        printf("Interpolated Value: %lf\n", qVals[actionInd]);
-      }
-      */
-
-  // cd_grid_double_interp(struct cd_grid * g, double * p, double * valuep)
-  //free(p);
-  //free(valuep);
-  //free(cell_init);
-
-      // Old version of reading in data file before switch/case statement:
-  //       if (numDims == 3)
-  // {
-  //   // **** Need to make these calls to separate functions (perhaps in another utility file?)
-  //   double Q[elementsDim[0]][elementsDim[1]][elementsDim[2]];
-    
-
-  //   /* Using the contents of the parameter file, read and parse the data file */  
-  //   /* Currently sets a max size for Q, should eventually malloc a multi-dimensional Q 
-  //      that is exactly the size defined by elementsDim. Or read directly into grid structure
-  //      For now will just assume it's 3D */  
-
-  //   for (actionInd=0; actionInd<numActions; actionInd++)
-  //   {
-      
-
-  //     // I should probably be able to read in the elements directly to Q if it's allocated into a contiguous
-  //     // memory block.  Could just use the index value, rather than going from  an index to a subscript and
-  //     // back to and index? Just need to verify that this works, then make sure my revision matches this version.
-  //     for (i=0;i<numElements;i++){
-  //       fscanf(fpData, "%lf", &var);
-  //       err = ind2subs(elementsDim, numDims, i, subs);
-  //       Q[subs[0]][subs[1]][subs[2]] = var;
-  //     }
-
-  //     // Older version that seemed to work (but was not consistent with julia, necessarily):
-  //     // for (i=0; i<elementsDim[0]; i++) {
-  //     //   for (j=0; j<elementsDim[1]; j++) {
-  //     //     for (k=0; k<elementsDim[2]; k++) {
-  //     //       fscanf(fpData, "%lf", &Q[i][j][k]);
-  //     //       if (VERBOSE) {
-  //     //         printf("Q[%d,%d,%d] = %lf\n", i,j,k,Q[i][j][k]);
-  //     //       }
-  //     //       //cd_grid_get_index(struct cd_grid * g, size_t index)
-  //     //     }
-  //     //     //printf("%f, ", discMat[i][j]);
-  //     //   }
-  //     //   //printf("]\n");
-  //     // }
-  //     //printf("Done loading data\n");
-
-  //     // After the number of dimensions, the size of each dimension must be passed in as a series of arguments.
-  //     cd_grid_create_fill(gridInst, Q, sizeof(double), numDims, elementsDim[0], elementsDim[1], elementsDim[2]);
-  //     gridQsa[actionInd] = gridInst;
-  //   }
-  //   //printf("Grid constructed\n");
-  // }
+}
