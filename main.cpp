@@ -278,8 +278,8 @@ int top(int argc, char **argv)
   }
 
   /* Open and check the files */
-  fpIn    = fopen("CA2_param.prm","r");
-  fpData  = fopen("CA2_data_CA2.dat","r");
+  fpIn    = fopen("CA2_params.prm","r");
+  fpData  = fopen("CA2_data.dat","r");
   // fpIn  = fopen("paramtemp.txt","r");
   // fpData  = fopen("datatemp.txt","r");
   // fpIn  = fopen("test.txt","r");
