@@ -10,11 +10,14 @@
 #define EXTRAPMODE 0      // Use 0 for the interpolation function to use nearest neighbor 
                           //  beyond the grid
 #define THREATRANGE 30    // Range in meters at which an intruder aircraft triggers calls to CA
-#define MAXSIMSTEPS 10    // If running in canned sim mode, stop after this number of time steps
+#define MAXSIMSTEPS 100    // If running in canned sim mode, stop after this number of time steps
 #define SIMSTATERAND 0    // If != 0, returns random states upon calls to readState() (must be in 
                           // READSTATELOCATION==0 mode). For debugging.  Random states are within
                           // + or - SIMSTATERAND
-#define VMAX  2          // Maximum absolute allowable horizontal velocity
+#define VMAX  0.5          // Maximum absolute allowable horizontal velocity
+
+#define NOMINAL_VX -0.5
+#define NOMINAL_VY 0.0
 
 int readState(double *currentState, int numDims, double timeNow)
 // States are [rx, ry, vxo, vyo, vxi, vyi, dx, dy]
@@ -190,8 +193,9 @@ switch (actionInd)
   if (vy_cmd < -VMAX)
     vy_cmd = -VMAX;
 
-  set_velocity_ownship( (float&)vx_cmd, (float&)vy_cmd );
-  printf("AVOID UV    [ % .4f , % .4f ]\n\n", vx_cmd, vy_cmd);
+  float vx=vx_cmd, vy=vy_cmd;
+  set_velocity_ownship( vx, vy );
+  printf("AVOID UV    [ % .4f , % .4f ]\n\n", vx, vy);
 
   fprintf(fpOut, "%lf, %lf\n", vx_cmd, vy_cmd);
   
@@ -209,7 +213,7 @@ int writeNominalAction(FILE *fpOut)
 {
   // Send nominal position command
 
-  float vx=0.5, vy=0.0;
+  float vx=NOMINAL_VX, vy=NOMINAL_VY;
   set_velocity_ownship( vx, vy );
   printf("NOMINAL UV  [ % .4f , % .4f ]\n\n", vx, vy);
 
@@ -274,16 +278,16 @@ int top(int argc, char **argv)
   }
 
   /* Open and check the files */
-  fpIn    = fopen("test6Dims.txt","r");
-  fpData  = fopen("data6Dims.txt","r");
+  fpIn    = fopen("CA2_param.prm","r");
+  fpData  = fopen("CA2_data_CA2.dat","r");
   // fpIn  = fopen("paramtemp.txt","r");
   // fpData  = fopen("datatemp.txt","r");
   // fpIn  = fopen("test.txt","r");
   // fpData  = fopen("data.txt","r");
   // fpIn  = fopen("param8Dim141201.txt","r");
   // fpData  = fopen("data8Dim141201.txt","r");
-  fpOut = fopen("testOut.txt","w");
-  fpLog = fopen("testLog.txt","w");
+  fpOut = fopen("results.out","w");
+  fpLog = fopen("results.log","w");
 
   /* Check for errors opening files */
   if (fpIn == NULL) {
@@ -564,13 +568,14 @@ int top(int argc, char **argv)
 
     // While debugging, stop after a predetermined number of steps:
     if (stepCounter>=MAXSIMSTEPS){
+    	printf("ENDING SIMULATION\n\n");
     	exitCondition = 1;
     }
     if (time_to_exit){
     	exitCondition = 1;
     }
 
-    usleep(1000000); // tick at 1Hz
+    usleep(1e6); // tick at 1Hz
 
   }
   free(currentState);

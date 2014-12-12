@@ -7,6 +7,10 @@
 pseudo_mavlink
 ca-flight
 
+# text
+*.out
+*.txt
+*.log
 
 /Debug/
 

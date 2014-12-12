@@ -17,7 +17,7 @@ Serial_Port *serial_port_ref;
 void
 get_position_intruder(float &x, float &y)
 {
-	x = 0.0;
+	x = -30.0;
 	y = 0.0;
 }
 
@@ -45,6 +45,7 @@ get_velocity_ownship(float &vx, float &vy)
 void
 set_velocity_ownship(float &vx, float &vy)
 {
+
 	// --------------------------------------------------------------------------
 	//   SEND OFFBOARD COMMANDS
 	// --------------------------------------------------------------------------
