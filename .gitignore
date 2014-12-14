@@ -5,6 +5,8 @@
 *.o
 *.d
 pseudo_mavlink
+pseudo_tcas
+pseudo_offboard
 ca-flight
 
 

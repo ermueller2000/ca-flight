@@ -50,11 +50,6 @@
 							</tool>
 						</toolChain>
 					</folderInfo>
-					<fileInfo id="cdt.managedbuild.config.gnu.cross.exe.debug.89685044.1013929237" name="pseudo_mavlink.cpp" rcbsApplicability="disable" resourcePath="pseudo_mavlink.cpp" toolsToInvoke="cdt.managedbuild.tool.gnu.cross.cpp.compiler.1573757211.382804578">
-						<tool id="cdt.managedbuild.tool.gnu.cross.cpp.compiler.1573757211.382804578" name="Cross G++ Compiler" superClass="cdt.managedbuild.tool.gnu.cross.cpp.compiler.1573757211">
-							<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.463227337" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
-						</tool>
-					</fileInfo>
 					<fileInfo id="cdt.managedbuild.config.gnu.cross.exe.debug.89685044.1854688058" name="mavlink_control.h" rcbsApplicability="disable" resourcePath="autopilot_interface/mavlink_control.h" toolsToInvoke=""/>
 					<sourceEntries>
 						<entry excluding="pseudo_mavlink.cpp|psuedo_mavlink.cpp|autopilot_interface/mavlink_control.h|autopilot_interface/mavlink_control.cpp" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
