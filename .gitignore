@@ -9,6 +9,10 @@ pseudo_tcas
 pseudo_offboard
 ca-flight
 
+# text
+*.out
+*.txt
+*.log
 
 /Debug/
 
