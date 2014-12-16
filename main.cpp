@@ -19,6 +19,8 @@
 #define NOMINAL_VX -0.5
 #define NOMINAL_VY 0.0
 
+#define STATESCALE 0.2    // Factor by which to scale all states and actions
+
 
 
 int readState(double *currentState, int numDims, double timeNow)
@@ -121,6 +123,12 @@ int readState(double *currentState, int numDims, double timeNow)
 
 		printf("\n");
   }
+
+  // Scale the states
+  for (i=0;i<numDims;i++) {
+    currentState[i] /= STATESCALE;
+  }
+
   return 0;
 
 }
@@ -182,9 +190,15 @@ switch (actionInd)
       return 1;
   }
 
-  vx_cmd = currentState[2]+ax*dt;
-  vy_cmd = currentState[3]+ay*dt;
-  fprintf(fpOut, "%d, %lf, %lf, ", actionInd, vx_cmd, vy_cmd);
+  // Scale the acceleration command?
+  // ax *= STATESCALE
+  // ay *= STATESCALE
+
+  vx_cmd = STATESCALE*(currentState[2]+ax*dt);
+  vy_cmd = STATESCALE*(currentState[3]+ay*dt);
+
+  // Log the scaled commands (what the algorithm sees):
+  fprintf(fpOut, "%d, %lf, %lf, ", actionInd, vx_cmd/STATESCALE, vy_cmd/STATESCALE);
 
   if (vx_cmd > VMAX)
     vx_cmd = VMAX;
@@ -202,6 +216,8 @@ switch (actionInd)
 
   printf("AVOID UV    [ % .4f , % .4f ]\n\n", vx, vy);
 
+
+  // Log the actual output (which is passed to the autopilot)
   fprintf(fpOut, "%lf, %lf\n", vx_cmd, vy_cmd);
   
 
@@ -216,7 +232,7 @@ switch (actionInd)
 int writeNominalAction(FILE *fpOut)
 // Simply command a position, hard coded for now.
 {
-  // Send nominal position command
+  // Send nominal position command (non-scaled)
 
   float vx=NOMINAL_VX, vy=NOMINAL_VY;
   float yaw = 180.;
@@ -245,6 +261,7 @@ int intruderThreat(double *currentState)
 int writeLogs(FILE *fpLog, int stepCounter, double* currentState, int numDims, int actionInd)
 // Writes key states to a log:
 // [currentStep, commanded action, states[0:N]]
+// These are the values seen by the algorithm, not the autopilot
 {
   int i;
 
