@@ -19,6 +19,8 @@
 #define NOMINAL_VX -0.5
 #define NOMINAL_VY 0.0
 
+
+
 int readState(double *currentState, int numDims, double timeNow)
 // States are [rx, ry, vxo, vyo, vxi, vyi, dx, dy]
 // The states coming from the autopilot will not be these, I'll need to calculate at least
@@ -194,7 +196,10 @@ switch (actionInd)
     vy_cmd = -VMAX;
 
   float vx=vx_cmd, vy=vy_cmd;
-  set_velocity_ownship( vx, vy );
+  float yaw = (2.*M_PI) - ( atan2( currentState[1], currentState[0] ) - (M_PI/4.) );
+
+  set_velocity_ownship( vx, vy, yaw );
+
   printf("AVOID UV    [ % .4f , % .4f ]\n\n", vx, vy);
 
   fprintf(fpOut, "%lf, %lf\n", vx_cmd, vy_cmd);
@@ -214,7 +219,9 @@ int writeNominalAction(FILE *fpOut)
   // Send nominal position command
 
   float vx=NOMINAL_VX, vy=NOMINAL_VY;
-  set_velocity_ownship( vx, vy );
+  float yaw = 180.;
+
+  set_velocity_ownship( vx, vy, yaw );
   printf("NOMINAL UV  [ % .4f , % .4f ]\n\n", vx, vy);
 
   fprintf(fpOut, "-1\n");

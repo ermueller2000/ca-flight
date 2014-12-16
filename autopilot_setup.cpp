@@ -6,6 +6,10 @@
 
 #include "autopilot_setup.h"
 
+#define OWNSHIP_SYSID 1
+#define INTRUDER_SYSID 2
+#define AUTOPILOT_ID 50
+
 bool time_to_exit = false;
 Autopilot_Interface *autopilot_interface_ref;
 Serial_Port *serial_port_ref;
@@ -17,33 +21,33 @@ Serial_Port *serial_port_ref;
 void
 get_position_intruder(float &x, float &y)
 {
-	x = -30.0;
-	y = 0.0;
+	x = autopilot_interface_ref->sorted_messages[INTRUDER_SYSID][AUTOPILOT_ID].local_position_ned.x;
+	y = autopilot_interface_ref->sorted_messages[INTRUDER_SYSID][AUTOPILOT_ID].local_position_ned.y;
 }
 
 void
 get_velocity_intruder(float &vx, float &vy)
 {
-	vx = 0;
-	vy = 0.0;
+	vx = autopilot_interface_ref->sorted_messages[INTRUDER_SYSID][AUTOPILOT_ID].local_position_ned.vx;
+	vy = autopilot_interface_ref->sorted_messages[INTRUDER_SYSID][AUTOPILOT_ID].local_position_ned.vy;
 }
 
 void
 get_position_ownship(float &x, float &y)
 {
-	x = autopilot_interface_ref->current_messages.local_position_ned.x;
-	y = autopilot_interface_ref->current_messages.local_position_ned.y;
+	x = autopilot_interface_ref->sorted_messages[OWNSHIP_SYSID][AUTOPILOT_ID].local_position_ned.x;
+	y = autopilot_interface_ref->sorted_messages[OWNSHIP_SYSID][AUTOPILOT_ID].local_position_ned.y;
 }
 
 void
 get_velocity_ownship(float &vx, float &vy)
 {
-	vx = autopilot_interface_ref->current_messages.local_position_ned.vx;
-	vy = autopilot_interface_ref->current_messages.local_position_ned.vy;
+	vx = autopilot_interface_ref->sorted_messages[OWNSHIP_SYSID][AUTOPILOT_ID].local_position_ned.vx;
+	vy = autopilot_interface_ref->sorted_messages[OWNSHIP_SYSID][AUTOPILOT_ID].local_position_ned.vy;
 }
 
 void
-set_velocity_ownship(float &vx, float &vy)
+set_velocity_ownship(float &vx, float &vy, float &yaw)
 {
 
 	// --------------------------------------------------------------------------
@@ -58,6 +62,9 @@ set_velocity_ownship(float &vx, float &vy)
 				  vy       , // [m/s]
 				  0.0      , // [m/s]
 				  sp        );
+
+//	// Set Yaw
+//	set_yaw( yaw, sp );  // CHECK THIS PARAM -- MC_YAWRATE_MAX
 
 	// SEND THE COMMAND
 	autopilot_interface_ref->update_setpoint(sp);
