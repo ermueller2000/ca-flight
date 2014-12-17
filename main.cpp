@@ -14,12 +14,11 @@
 #define SIMSTATERAND 0    // If != 0, returns random states upon calls to readState() (must be in 
                           // READSTATELOCATION==0 mode). For debugging.  Random states are within
                           // + or - SIMSTATERAND
-#define VMAX  0.5          // Maximum absolute allowable horizontal velocity
 
-#define NOMINAL_VX -0.5
-#define NOMINAL_VY 0.0
+#define NOMINAL_VX -2.0
+#define NOMINAL_VY  0.0
 
-#define STATESCALE 0.2    // Factor by which to scale all states and actions
+
 
 
 
@@ -124,11 +123,6 @@ int readState(double *currentState, int numDims, double timeNow)
 		printf("\n");
   }
 
-  // Scale the states
-  for (i=0;i<numDims;i++) {
-    currentState[i] /= STATESCALE;
-  }
-
   return 0;
 
 }
@@ -190,32 +184,18 @@ switch (actionInd)
       return 1;
   }
 
-  // Scale the acceleration command?
-  // ax *= STATESCALE
-  // ay *= STATESCALE
-
-  vx_cmd = STATESCALE*(currentState[2]+ax*dt);
-  vy_cmd = STATESCALE*(currentState[3]+ay*dt);
+  vx_cmd = (currentState[2]+ax*dt);
+  vy_cmd = (currentState[3]+ay*dt);
 
   // Log the scaled commands (what the algorithm sees):
-  fprintf(fpOut, "%d, %lf, %lf, ", actionInd, vx_cmd/STATESCALE, vy_cmd/STATESCALE);
-
-  if (vx_cmd > VMAX)
-    vx_cmd = VMAX;
-  if (vx_cmd < -VMAX)
-    vx_cmd = -VMAX;
-  if (vy_cmd > VMAX)
-    vy_cmd = VMAX;
-  if (vy_cmd < -VMAX)
-    vy_cmd = -VMAX;
+  fprintf(fpOut, "%d, %lf, %lf, ", actionInd, vx_cmd, vy_cmd);
 
   float vx=vx_cmd, vy=vy_cmd;
   float yaw = (2.*M_PI) - ( atan2( currentState[1], currentState[0] ) - (M_PI/4.) );
 
   set_velocity_ownship( vx, vy, yaw );
 
-  printf("AVOID UV    [ % .4f , % .4f ]\n\n", vx, vy);
-
+  printf("AVOID U-V-Psi    [ % .4f , % .4f, % .4f ]\n\n", vx, vy, yaw);
 
   // Log the actual output (which is passed to the autopilot)
   fprintf(fpOut, "%lf, %lf\n", vx_cmd, vy_cmd);
@@ -238,7 +218,7 @@ int writeNominalAction(FILE *fpOut)
   float yaw = 180.;
 
   set_velocity_ownship( vx, vy, yaw );
-  printf("NOMINAL UV  [ % .4f , % .4f ]\n\n", vx, vy);
+  printf("NOMINAL U-V-Psi  [ % .4f , % .4f , % .4f]\n\n", vx, vy, yaw);
 
   fprintf(fpOut, "-1\n");
   return 0;

@@ -35,26 +35,28 @@ top (int argc, char **argv)
 	while (1)
 	{
 
-		// SYSTEM 1
-		sysid = 1;
-
-		// copy current messages
-		messages = autopilot_interface.sorted_messages[sysid][compid];
-
-		// local position in ned frame
-		pos = messages.local_position_ned;
-		printf("VEHICLE %i - LOCAL_POSITION_NED - [ % .4f % .4f % .4f ] (m)\n", sysid, pos.x, pos.y, pos.z );
-
-
 		// SYSTEM 2
-		sysid = 2;
+		sysid = 2; // BUZZER
 
 		// copy current messages
 		messages = autopilot_interface.sorted_messages[sysid][compid];
 
 		// local position in ned frame
 		pos = messages.local_position_ned;
-		printf("VEHICLE %i - LOCAL_POSITION_NED - [ % .4f % .4f % .4f ] (m)\n", sysid, pos.x, pos.y, pos.z );
+		printf("VEHICLE %i - POSITION NED - [ % .4f % .4f % .4f ] (m)\n", sysid, pos.x, pos.y, pos.z );
+		printf("VEHICLE %i - VELOCITY NED - [ % .4f % .4f % .4f ] (m)\n", sysid, pos.vx, pos.vy, pos.vz );
+
+
+		// SYSTEM 3
+		sysid = 3; // COCONUT
+
+		// copy current messages
+		messages = autopilot_interface.sorted_messages[sysid][compid];
+
+		// local position in ned frame
+		pos = messages.local_position_ned;
+		printf("VEHICLE %i - POSITION NED - [ % .4f % .4f % .4f ] (m)\n", sysid, pos.x, pos.y, pos.z );
+		printf("VEHICLE %i - VELOCITY NED - [ % .4f % .4f % .4f ] (m)\n", sysid, pos.vx, pos.vy, pos.vz );
 
 
 		printf("\n");

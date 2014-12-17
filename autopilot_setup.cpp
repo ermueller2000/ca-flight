@@ -6,13 +6,16 @@
 
 #include "autopilot_setup.h"
 
-#define OWNSHIP_SYSID 1
-#define INTRUDER_SYSID 2
+#define OWNSHIP_SYSID 2
+#define INTRUDER_SYSID 3
 #define AUTOPILOT_ID 50
 
 bool time_to_exit = false;
 Autopilot_Interface *autopilot_interface_ref;
 Serial_Port *serial_port_ref;
+
+#define STATESCALE 0.2    // Factor by which to scale all states and actions
+#define VMAX  0.5          // Maximum absolute allowable horizontal velocity
 
 // ------------------------------------------------------------------------------
 //   Position Get and Set Functions
@@ -23,6 +26,10 @@ get_position_intruder(float &x, float &y)
 {
 	x = autopilot_interface_ref->sorted_messages[INTRUDER_SYSID][AUTOPILOT_ID].local_position_ned.x;
 	y = autopilot_interface_ref->sorted_messages[INTRUDER_SYSID][AUTOPILOT_ID].local_position_ned.y;
+
+	// scale
+	x /= STATESCALE;
+	y /= STATESCALE;
 }
 
 void
@@ -30,6 +37,10 @@ get_velocity_intruder(float &vx, float &vy)
 {
 	vx = autopilot_interface_ref->sorted_messages[INTRUDER_SYSID][AUTOPILOT_ID].local_position_ned.vx;
 	vy = autopilot_interface_ref->sorted_messages[INTRUDER_SYSID][AUTOPILOT_ID].local_position_ned.vy;
+
+	// scale
+	vx /= STATESCALE;
+	vy /= STATESCALE;
 }
 
 void
@@ -37,6 +48,10 @@ get_position_ownship(float &x, float &y)
 {
 	x = autopilot_interface_ref->sorted_messages[OWNSHIP_SYSID][AUTOPILOT_ID].local_position_ned.x;
 	y = autopilot_interface_ref->sorted_messages[OWNSHIP_SYSID][AUTOPILOT_ID].local_position_ned.y;
+
+	// scale
+	x /= STATESCALE;
+	y /= STATESCALE;
 }
 
 void
@@ -44,11 +59,24 @@ get_velocity_ownship(float &vx, float &vy)
 {
 	vx = autopilot_interface_ref->sorted_messages[OWNSHIP_SYSID][AUTOPILOT_ID].local_position_ned.vx;
 	vy = autopilot_interface_ref->sorted_messages[OWNSHIP_SYSID][AUTOPILOT_ID].local_position_ned.vy;
+
+	// scale
+	vx /= STATESCALE;
+	vy /= STATESCALE;
 }
 
 void
 set_velocity_ownship(float &vx, float &vy, float &yaw)
 {
+	// unscale
+	vx *= STATESCALE;
+	vy *= STATESCALE;
+
+	// speed limit
+	if (vx >  VMAX)  vx =  VMAX;
+	if (vx < -VMAX)  vx = -VMAX;
+	if (vy >  VMAX)  vy =  VMAX;
+	if (vy < -VMAX)  vy = -VMAX;
 
 	// --------------------------------------------------------------------------
 	//   SEND OFFBOARD COMMANDS
