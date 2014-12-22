@@ -101,7 +101,7 @@ void get_position_intruder(float &x, float &y);
 void get_velocity_intruder(float &vx, float &vy);
 void get_position_ownship(float &x, float &y);
 void get_velocity_ownship(float &vx, float &vy);
-void set_velocity_ownship(float &vx, float &vy, float &yaw);
+void set_velocity_ownship(float vx, float vy, float yaw);
 
 
 #endif // AUTOPILOT_SETUP_H_

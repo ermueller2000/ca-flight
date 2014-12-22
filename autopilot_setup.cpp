@@ -15,7 +15,7 @@ Autopilot_Interface *autopilot_interface_ref;
 Serial_Port *serial_port_ref;
 
 #define STATESCALE 0.2    // Factor by which to scale all states and actions
-#define VMAX  0.5          // Maximum absolute allowable horizontal velocity
+#define VMAX  1.0          // Maximum absolute allowable horizontal velocity
 
 // ------------------------------------------------------------------------------
 //   Position Get and Set Functions
@@ -66,7 +66,7 @@ get_velocity_ownship(float &vx, float &vy)
 }
 
 void
-set_velocity_ownship(float &vx, float &vy, float &yaw)
+set_velocity_ownship(float vx, float vy, float yaw)
 {
 	// unscale
 	vx *= STATESCALE;
@@ -91,8 +91,8 @@ set_velocity_ownship(float &vx, float &vy, float &yaw)
 				  0.0      , // [m/s]
 				  sp        );
 
-//	// Set Yaw
-//	set_yaw( yaw, sp );  // CHECK THIS PARAM -- MC_YAWRATE_MAX
+	// Set Yaw
+	set_yaw( yaw, sp );
 
 	// SEND THE COMMAND
 	autopilot_interface_ref->update_setpoint(sp);

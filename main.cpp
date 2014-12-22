@@ -15,7 +15,7 @@
                           // READSTATELOCATION==0 mode). For debugging.  Random states are within
                           // + or - SIMSTATERAND
 
-#define NOMINAL_VX -2.0
+#define NOMINAL_VX -2.5
 #define NOMINAL_VY  0.0
 
 
@@ -290,8 +290,8 @@ int top(int argc, char **argv)
   // fpData  = fopen("data.txt","r");
   // fpIn  = fopen("param8Dim141201.txt","r");
   // fpData  = fopen("data8Dim141201.txt","r");
-  fpOut = fopen("results.out","w");
-  fpLog = fopen("results.log","w");
+  fpOut = fopen("CA2_results.out","w");
+  fpLog = fopen("CA2_results.log","w");
 
   /* Check for errors opening files */
   if (fpIn == NULL) {
